@@ -1,0 +1,2 @@
+- Enabled Nuget package restore
+- Added a dummy dependency "EntityFramework"
