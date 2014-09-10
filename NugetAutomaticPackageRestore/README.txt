@@ -1,2 +1,3 @@
 - Enabled Nuget package restore
 - Added a dummy dependency "EntityFramework"
+- Migrated from MSBuild-Integrated to Automatic Package Restore
