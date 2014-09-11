@@ -9,6 +9,6 @@ The project that we want to be available as a Nuget package.
 
 Foo.MyApp
 --------------
-The app that actually uses the library
+The app that actually uses the library.
 
 Read the complete tutorial @ http://giacomorighetti.wordpress.com/
