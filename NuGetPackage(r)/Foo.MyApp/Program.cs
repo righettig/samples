@@ -4,7 +4,7 @@
     {
         static void Main(string[] args)
         {
-            // TODO
+            Foo.MyLibrary.AwesomeClass.AwesomeMethod();
         }
     }
 }
