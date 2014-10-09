@@ -1,10 +1,8 @@
 ﻿using System;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Web;
 using System.Web.Mvc;
 using Microsoft.AspNet.Identity;
-using Microsoft.AspNet.Identity.Owin;
 using Microsoft.Owin.Security;
 using Mvc5DIFriendly_OnlyMvc.Models;
 
@@ -13,26 +11,31 @@ namespace Mvc5DIFriendly_OnlyMvc.Controllers
     [Authorize]
     public class ManageController : Controller
     {
-        public ManageController()
+        /// <summary>
+        /// Initializes a new instance of the <see cref="ManageController"/> class.
+        /// </summary>
+        /// <param name="userManager">The user manager.</param>
+        /// <param name="authenticationManager">The authentication manager.</param>
+        /// <exception cref="System.ArgumentNullException">
+        /// userManager
+        /// or
+        /// authenticationManager
+        /// </exception>
+        public ManageController(
+            ApplicationUserManager userManager, IAuthenticationManager authenticationManager)
         {
-        }
-
-        public ManageController(ApplicationUserManager userManager)
-        {
-            UserManager = userManager;
-        }
-
-        private ApplicationUserManager _userManager;
-        public ApplicationUserManager UserManager
-        {
-            get
+            if (userManager == null)
             {
-                return _userManager ?? HttpContext.GetOwinContext().GetUserManager<ApplicationUserManager>();
+                throw new ArgumentNullException("userManager");
             }
-            private set
+
+            if (authenticationManager == null)
             {
-                _userManager = value;
+                throw new ArgumentNullException("authenticationManager");
             }
+
+            _userManager = userManager;
+            _authenticationManager = authenticationManager;
         }
 
         //
@@ -51,10 +54,10 @@ namespace Mvc5DIFriendly_OnlyMvc.Controllers
             var model = new IndexViewModel
             {
                 HasPassword = HasPassword(),
-                PhoneNumber = await UserManager.GetPhoneNumberAsync(User.Identity.GetUserId()),
-                TwoFactor = await UserManager.GetTwoFactorEnabledAsync(User.Identity.GetUserId()),
-                Logins = await UserManager.GetLoginsAsync(User.Identity.GetUserId()),
-                BrowserRemembered = await AuthenticationManager.TwoFactorBrowserRememberedAsync(User.Identity.GetUserId())
+                PhoneNumber = await _userManager.GetPhoneNumberAsync(User.Identity.GetUserId()),
+                TwoFactor = await _userManager.GetTwoFactorEnabledAsync(User.Identity.GetUserId()),
+                Logins = await _userManager.GetLoginsAsync(User.Identity.GetUserId()),
+                BrowserRemembered = await _authenticationManager.TwoFactorBrowserRememberedAsync(User.Identity.GetUserId())
             };
             return View(model);
         }
@@ -63,7 +66,7 @@ namespace Mvc5DIFriendly_OnlyMvc.Controllers
         // GET: /Manage/RemoveLogin
         public ActionResult RemoveLogin()
         {
-            var linkedAccounts = UserManager.GetLogins(User.Identity.GetUserId());
+            var linkedAccounts = _userManager.GetLogins(User.Identity.GetUserId());
             ViewBag.ShowRemoveButton = HasPassword() || linkedAccounts.Count > 1;
             return View(linkedAccounts);
         }
@@ -75,10 +78,14 @@ namespace Mvc5DIFriendly_OnlyMvc.Controllers
         public async Task<ActionResult> RemoveLogin(string loginProvider, string providerKey)
         {
             ManageMessageId? message;
-            var result = await UserManager.RemoveLoginAsync(User.Identity.GetUserId(), new UserLoginInfo(loginProvider, providerKey));
+            var result =
+                await
+                    _userManager.RemoveLoginAsync(User.Identity.GetUserId(),
+                        new UserLoginInfo(loginProvider, providerKey));
+
             if (result.Succeeded)
             {
-                var user = await UserManager.FindByIdAsync(User.Identity.GetUserId());
+                var user = await _userManager.FindByIdAsync(User.Identity.GetUserId());
                 if (user != null)
                 {
                     await SignInAsync(user, isPersistent: false);
@@ -110,15 +117,15 @@ namespace Mvc5DIFriendly_OnlyMvc.Controllers
                 return View(model);
             }
             // Generate the token and send it
-            var code = await UserManager.GenerateChangePhoneNumberTokenAsync(User.Identity.GetUserId(), model.Number);
-            if (UserManager.SmsService != null)
+            var code = await _userManager.GenerateChangePhoneNumberTokenAsync(User.Identity.GetUserId(), model.Number);
+            if (_userManager.SmsService != null)
             {
                 var message = new IdentityMessage
                 {
                     Destination = model.Number,
                     Body = "Your security code is: " + code
                 };
-                await UserManager.SmsService.SendAsync(message);
+                await _userManager.SmsService.SendAsync(message);
             }
             return RedirectToAction("VerifyPhoneNumber", new { PhoneNumber = model.Number });
         }
@@ -128,8 +135,8 @@ namespace Mvc5DIFriendly_OnlyMvc.Controllers
         [HttpPost]
         public async Task<ActionResult> EnableTwoFactorAuthentication()
         {
-            await UserManager.SetTwoFactorEnabledAsync(User.Identity.GetUserId(), true);
-            var user = await UserManager.FindByIdAsync(User.Identity.GetUserId());
+            await _userManager.SetTwoFactorEnabledAsync(User.Identity.GetUserId(), true);
+            var user = await _userManager.FindByIdAsync(User.Identity.GetUserId());
             if (user != null)
             {
                 await SignInAsync(user, isPersistent: false);
@@ -142,8 +149,8 @@ namespace Mvc5DIFriendly_OnlyMvc.Controllers
         [HttpPost]
         public async Task<ActionResult> DisableTwoFactorAuthentication()
         {
-            await UserManager.SetTwoFactorEnabledAsync(User.Identity.GetUserId(), false);
-            var user = await UserManager.FindByIdAsync(User.Identity.GetUserId());
+            await _userManager.SetTwoFactorEnabledAsync(User.Identity.GetUserId(), false);
+            var user = await _userManager.FindByIdAsync(User.Identity.GetUserId());
             if (user != null)
             {
                 await SignInAsync(user, isPersistent: false);
@@ -155,7 +162,8 @@ namespace Mvc5DIFriendly_OnlyMvc.Controllers
         // GET: /Manage/VerifyPhoneNumber
         public async Task<ActionResult> VerifyPhoneNumber(string phoneNumber)
         {
-            var code = await UserManager.GenerateChangePhoneNumberTokenAsync(User.Identity.GetUserId(), phoneNumber);
+            var code = await _userManager.GenerateChangePhoneNumberTokenAsync(User.Identity.GetUserId(), phoneNumber);
+            
             // Send an SMS through the SMS provider to verify the phone number
             return phoneNumber == null ? View("Error") : View(new VerifyPhoneNumberViewModel { PhoneNumber = phoneNumber });
         }
@@ -170,10 +178,10 @@ namespace Mvc5DIFriendly_OnlyMvc.Controllers
             {
                 return View(model);
             }
-            var result = await UserManager.ChangePhoneNumberAsync(User.Identity.GetUserId(), model.PhoneNumber, model.Code);
+            var result = await _userManager.ChangePhoneNumberAsync(User.Identity.GetUserId(), model.PhoneNumber, model.Code);
             if (result.Succeeded)
             {
-                var user = await UserManager.FindByIdAsync(User.Identity.GetUserId());
+                var user = await _userManager.FindByIdAsync(User.Identity.GetUserId());
                 if (user != null)
                 {
                     await SignInAsync(user, isPersistent: false);
@@ -189,12 +197,12 @@ namespace Mvc5DIFriendly_OnlyMvc.Controllers
         // GET: /Manage/RemovePhoneNumber
         public async Task<ActionResult> RemovePhoneNumber()
         {
-            var result = await UserManager.SetPhoneNumberAsync(User.Identity.GetUserId(), null);
+            var result = await _userManager.SetPhoneNumberAsync(User.Identity.GetUserId(), null);
             if (!result.Succeeded)
             {
                 return RedirectToAction("Index", new { Message = ManageMessageId.Error });
             }
-            var user = await UserManager.FindByIdAsync(User.Identity.GetUserId());
+            var user = await _userManager.FindByIdAsync(User.Identity.GetUserId());
             if (user != null)
             {
                 await SignInAsync(user, isPersistent: false);
@@ -219,10 +227,10 @@ namespace Mvc5DIFriendly_OnlyMvc.Controllers
             {
                 return View(model);
             }
-            var result = await UserManager.ChangePasswordAsync(User.Identity.GetUserId(), model.OldPassword, model.NewPassword);
+            var result = await _userManager.ChangePasswordAsync(User.Identity.GetUserId(), model.OldPassword, model.NewPassword);
             if (result.Succeeded)
             {
-                var user = await UserManager.FindByIdAsync(User.Identity.GetUserId());
+                var user = await _userManager.FindByIdAsync(User.Identity.GetUserId());
                 if (user != null)
                 {
                     await SignInAsync(user, isPersistent: false);
@@ -248,10 +256,10 @@ namespace Mvc5DIFriendly_OnlyMvc.Controllers
         {
             if (ModelState.IsValid)
             {
-                var result = await UserManager.AddPasswordAsync(User.Identity.GetUserId(), model.NewPassword);
+                var result = await _userManager.AddPasswordAsync(User.Identity.GetUserId(), model.NewPassword);
                 if (result.Succeeded)
                 {
-                    var user = await UserManager.FindByIdAsync(User.Identity.GetUserId());
+                    var user = await _userManager.FindByIdAsync(User.Identity.GetUserId());
                     if (user != null)
                     {
                         await SignInAsync(user, isPersistent: false);
@@ -273,13 +281,16 @@ namespace Mvc5DIFriendly_OnlyMvc.Controllers
                 message == ManageMessageId.RemoveLoginSuccess ? "The external login was removed."
                 : message == ManageMessageId.Error ? "An error has occurred."
                 : "";
-            var user = await UserManager.FindByIdAsync(User.Identity.GetUserId());
+            var user = await _userManager.FindByIdAsync(User.Identity.GetUserId());
             if (user == null)
             {
                 return View("Error");
             }
-            var userLogins = await UserManager.GetLoginsAsync(User.Identity.GetUserId());
-            var otherLogins = AuthenticationManager.GetExternalAuthenticationTypes().Where(auth => userLogins.All(ul => auth.AuthenticationType != ul.LoginProvider)).ToList();
+            var userLogins = await _userManager.GetLoginsAsync(User.Identity.GetUserId());
+            var otherLogins =
+                _authenticationManager.GetExternalAuthenticationTypes()
+                    .Where(auth => userLogins.All(ul => auth.AuthenticationType != ul.LoginProvider))
+                    .ToList();
             ViewBag.ShowRemoveButton = user.PasswordHash != null || userLogins.Count > 1;
             return View(new ManageLoginsViewModel
             {
@@ -302,31 +313,25 @@ namespace Mvc5DIFriendly_OnlyMvc.Controllers
         // GET: /Manage/LinkLoginCallback
         public async Task<ActionResult> LinkLoginCallback()
         {
-            var loginInfo = await AuthenticationManager.GetExternalLoginInfoAsync(XsrfKey, User.Identity.GetUserId());
+            var loginInfo = await _authenticationManager.GetExternalLoginInfoAsync(XsrfKey, User.Identity.GetUserId());
             if (loginInfo == null)
             {
                 return RedirectToAction("ManageLogins", new { Message = ManageMessageId.Error });
             }
-            var result = await UserManager.AddLoginAsync(User.Identity.GetUserId(), loginInfo.Login);
+            var result = await _userManager.AddLoginAsync(User.Identity.GetUserId(), loginInfo.Login);
             return result.Succeeded ? RedirectToAction("ManageLogins") : RedirectToAction("ManageLogins", new { Message = ManageMessageId.Error });
         }
 
-#region Helpers
+        #region Helpers
+
         // Used for XSRF protection when adding external logins
         private const string XsrfKey = "XsrfId";
 
-        private IAuthenticationManager AuthenticationManager
-        {
-            get
-            {
-                return HttpContext.GetOwinContext().Authentication;
-            }
-        }
-
         private async Task SignInAsync(ApplicationUser user, bool isPersistent)
         {
-            AuthenticationManager.SignOut(DefaultAuthenticationTypes.ExternalCookie, DefaultAuthenticationTypes.TwoFactorCookie);
-            AuthenticationManager.SignIn(new AuthenticationProperties { IsPersistent = isPersistent }, await user.GenerateUserIdentityAsync(UserManager));
+            _authenticationManager.SignOut(DefaultAuthenticationTypes.ExternalCookie, DefaultAuthenticationTypes.TwoFactorCookie);
+            _authenticationManager.SignIn(new AuthenticationProperties {IsPersistent = isPersistent},
+                await user.GenerateUserIdentityAsync(_userManager));
         }
 
         private void AddErrors(IdentityResult result)
@@ -339,7 +344,7 @@ namespace Mvc5DIFriendly_OnlyMvc.Controllers
 
         private bool HasPassword()
         {
-            var user = UserManager.FindById(User.Identity.GetUserId());
+            var user = _userManager.FindById(User.Identity.GetUserId());
             if (user != null)
             {
                 return user.PasswordHash != null;
@@ -349,7 +354,7 @@ namespace Mvc5DIFriendly_OnlyMvc.Controllers
 
         private bool HasPhoneNumber()
         {
-            var user = UserManager.FindById(User.Identity.GetUserId());
+            var user = _userManager.FindById(User.Identity.GetUserId());
             if (user != null)
             {
                 return user.PhoneNumber != null;
@@ -368,6 +373,13 @@ namespace Mvc5DIFriendly_OnlyMvc.Controllers
             Error
         }
 
-#endregion
+        #endregion
+
+        #region Private fields
+
+        private readonly ApplicationUserManager _userManager;
+        private readonly IAuthenticationManager _authenticationManager;
+
+        #endregion
     }
 }

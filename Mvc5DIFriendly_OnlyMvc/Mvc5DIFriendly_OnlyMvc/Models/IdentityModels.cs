@@ -1,5 +1,4 @@
-﻿using System.Data.Entity;
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNet.Identity;
 using Microsoft.AspNet.Identity.EntityFramework;
@@ -13,6 +12,7 @@ namespace Mvc5DIFriendly_OnlyMvc.Models
         {
             // Note the authenticationType must match the one defined in CookieAuthenticationOptions.AuthenticationType
             var userIdentity = await manager.CreateIdentityAsync(this, DefaultAuthenticationTypes.ApplicationCookie);
+            
             // Add custom user claims here
             return userIdentity;
         }
@@ -25,9 +25,9 @@ namespace Mvc5DIFriendly_OnlyMvc.Models
         {
         }
 
-        public static ApplicationDbContext Create()
-        {
-            return new ApplicationDbContext();
-        }
+        //public static ApplicationDbContext Create()
+        //{
+        //    return new ApplicationDbContext();
+        //}
     }
 }
