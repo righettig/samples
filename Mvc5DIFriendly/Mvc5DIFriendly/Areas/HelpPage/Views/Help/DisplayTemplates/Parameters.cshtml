@@ -14,7 +14,7 @@
         <tbody>
             @foreach (ParameterDescription parameter in Model)
             {
-                ModelDescription modelDescription = parameter.TypeDescription;
+                var modelDescription = parameter.TypeDescription;
                 <tr>
                     <td class="parameter-name">@parameter.Name</td>
                     <td class="parameter-documentation">

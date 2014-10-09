@@ -2,7 +2,6 @@ using System;
 using System.Web.Http;
 using System.Web.Mvc;
 using Mvc5DIFriendly.Areas.HelpPage.ModelDescriptions;
-using Mvc5DIFriendly.Areas.HelpPage.Models;
 
 namespace Mvc5DIFriendly.Areas.HelpPage.Controllers
 {
@@ -35,7 +34,7 @@ namespace Mvc5DIFriendly.Areas.HelpPage.Controllers
         {
             if (!String.IsNullOrEmpty(apiId))
             {
-                HelpPageApiModel apiModel = Configuration.GetHelpPageApiModel(apiId);
+                var apiModel = Configuration.GetHelpPageApiModel(apiId);
                 if (apiModel != null)
                 {
                     return View(apiModel);
@@ -49,7 +48,7 @@ namespace Mvc5DIFriendly.Areas.HelpPage.Controllers
         {
             if (!String.IsNullOrEmpty(modelName))
             {
-                ModelDescriptionGenerator modelDescriptionGenerator = Configuration.GetModelDescriptionGenerator();
+                var modelDescriptionGenerator = Configuration.GetModelDescriptionGenerator();
                 ModelDescription modelDescription;
                 if (modelDescriptionGenerator.GeneratedModels.TryGetValue(modelName, out modelDescription))
                 {
